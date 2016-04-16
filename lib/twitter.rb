@@ -9,38 +9,96 @@ class Twitter
     @users_repo = UserRepository.instance
   end
 
-  def main
-    puts "Hello, what is your username?"
-    username = gets().chomp
-    user = @users_repo.find_or_create_by_name(username)
-    loop_for_user(user)
+  def get_user(username)
+    @user = @users_repo.find_or_create_by_name(username)
   end
 
-  def loop_for_user(user)
-    loop do
-      puts "What would you like to do?"
-      puts "You can `tweet`, `follow` a user, check your `timeline`, and `sign out`"
-      action = gets().chomp
-      case action
-      when "tweet"
-        puts "What's on your mind"
-        tweet = gets().chomp
-        user.tweet(tweet)
-      when "follow"
-        puts "These are the available users:"
-        puts @users_repo.user_list
-        puts "Which one do you want to follow?"
-        username = gets().chomp
-        to_follow = @users_repo.find_by_name(username)
-        user.follow(to_follow)
-      when "timeline"
-        puts user.timeline
-      when "sign out"
-        main
-      else "Sorry I only understand the specified commands, try again!"
-      end
-    end
+  def tweet(tweet)
+    @user.tweet(tweet)
+  end
+
+  def follow(username)
+    to_follow = @users_repo.find_by_name(username)
+    @user.follow(to_follow)
+  end
+
+  def list_users
+    puts "These are the available users:"
+    puts @users_repo.user_list
+  end
+
+  def timeline
+    puts @user.timeline
   end
 end
 
-Twitter.new.main
+class Commands
+  def initialize(subject)
+    @subject = subject
+    @commands = {}
+  end
+
+  def setup(command, dependent_commands=[], message=nil)
+    @setup = {command: command, dependent_commands: dependent_commands, message: message}
+    self
+  end
+
+  def register(name, command, dependent_commands=[], message=nil)
+    @commands[name] = {command: command, dependent_commands: dependent_commands, message: message}
+    self
+  end
+
+  def stop(command)
+    @stop_command = command
+    self
+  end
+  
+  def default(text)
+    @default = text
+    self
+  end
+
+  def run
+    run_command(@setup)
+    loop do
+      list_commands
+      command = gets().chomp
+
+      break if command == @stop_command
+      next (puts @default) unless @commands[command]
+
+      run_command(@commands[command])
+    end
+  end
+
+  private
+
+  def run_command(command)
+    command[:dependent_commands].each { |name| @commands[name][:command].call(@subject) }
+    if command[:message]
+      puts command[:message]
+      response = gets().chomp
+      command[:command].call(@subject, response) 
+    else
+      command[:command].call(@subject) 
+    end
+  end
+
+  def list_commands
+    puts "You can do the following commands: #{@commands.keys.join(", ")}"
+    puts "What would you like to do?"
+  end
+
+end
+
+Commands.new(Twitter.new)
+.setup(->(me, arg){me.get_user(arg)}, [], "What is your username?")
+.register("tweet", ->(me, arg){me.tweet(arg)}, [], "What's on your mind?")
+.register("timeline", ->(me){me.timeline})
+.register("follow", ->(me, arg){me.follow(arg)}, ["list users"], "Which one do you want to follow?")
+.register("list users", ->(me){me.list_users})
+.register("sign out", ->(me, arg){me.get_user(arg)}, [], "What is your username?")
+.stop("quit")
+.default("Sorry I only understand the specified commands, try again!")
+.run
+
