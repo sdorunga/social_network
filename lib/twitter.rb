@@ -89,6 +89,25 @@ class Commands
     puts "What would you like to do?"
   end
 
+  class Command
+    attr_reader :name
+    def initialize(name, command, dependencies, prompt)
+      @name = name
+      @command = command
+      @dependencies = dependencies
+      @prompt = prompt
+    end
+
+    def run(subject)
+      if @prompt
+        puts @prompt
+        response = gets().chomp
+        @command.call(subject, response)
+      else
+        @command.call(subject)
+      end
+    end
+  end
 end
 
 Commands.new(Twitter.new)
